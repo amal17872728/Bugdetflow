@@ -1,394 +1,324 @@
 import React, { useState, useEffect } from 'react';
-import '../App.css';
-import '../App.css'
+import { useDispatch, useSelector } from 'react-redux';
+import { addToast } from '../store/toastSlice';
 
 const Budget = () => {
-  const [budgets, setBudgets] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [newBudget, setNewBudget] = useState({
-    category: '',
-    amount: '',
-    period: 'monthly' // monthly, weekly, yearly
-  });
+  const dispatch = useDispatch();
+  const userId = useSelector(state => state.user.currentUser?._id);
+  const [budgets, setBudgets]           = useState([]);
+  const [categories, setCategories]     = useState([]);
+  const [newBudget, setNewBudget]       = useState({ category: '', amount: '', period: 'monthly' });
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail]               = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [emailInput, setEmailInput]     = useState('');
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
 
-  // Fetch existing budgets and categories
   const fetchBudgets = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/budgets');
-      if (response.ok) {
-        const data = await response.json();
-        setBudgets(data);
-      }
-    } catch (error) {
-      console.error('Error fetching budgets:', error);
+      const res = await fetch(`http://localhost:5000/api/budgets?userId=${userId}`);
+      if (res.ok) setBudgets(await res.json());
+    } catch (err) {
+      console.error('Error fetching budgets:', err);
     }
   };
 
-  // Fetch categories from transactions
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/transactions');
-      if (response.ok) {
-        const transactions = await response.json();
-        const uniqueCategories = [...new Set(transactions.map(t => t.category))];
-        setCategories(uniqueCategories.filter(cat => cat && cat !== 'all'));
+      const res = await fetch(`http://localhost:5000/api/transactions?userId=${userId}`);
+      if (res.ok) {
+        const txns = await res.json();
+        const unique = [...new Set(txns.map(t => t.category))].filter(c => c && c !== 'all');
+        setCategories(unique);
       }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
     }
   };
 
   useEffect(() => {
     fetchBudgets();
     fetchCategories();
-    
-    // Load notification settings from localStorage
-    const savedNotifications = localStorage.getItem('notificationsEnabled');
+    const saved = localStorage.getItem('notificationsEnabled');
     const savedEmail = localStorage.getItem('userEmail');
-    
-    if (savedNotifications) setNotificationsEnabled(JSON.parse(savedNotifications));
+    if (saved) setNotificationsEnabled(JSON.parse(saved));
     if (savedEmail) setEmail(savedEmail);
   }, []);
 
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewBudget(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setNewBudget(prev => ({ ...prev, [name]: value }));
   };
 
-  // Add new budget
   const handleAddBudget = async (e) => {
     e.preventDefault();
-    
     if (!newBudget.category || !newBudget.amount) {
-      alert('Please fill in all fields');
-      return;
+      dispatch(addToast({ type: 'error', message: 'Please fill in all fields' })); return;
     }
-
     try {
-      const response = await fetch('http://localhost:5000/api/budgets', {
+      const res  = await fetch('http://localhost:5000/api/budgets', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId,
           category: newBudget.category,
-          amount: parseFloat(newBudget.amount),
-          period: newBudget.period
-        })
+          amount:   parseFloat(newBudget.amount),
+          period:   newBudget.period,
+        }),
       });
-
-      if (response.ok) {
-        const savedBudget = await response.json();
-        setBudgets(prev => [...prev, savedBudget]);
+      const data = await res.json();
+      if (res.ok) {
+        setBudgets(prev => [...prev, data]);
         setNewBudget({ category: '', amount: '', period: 'monthly' });
-        alert('Budget added successfully!');
+        dispatch(addToast({ type: 'success', message: `Budget for "${data.category}" added!` }));
       } else {
-        throw new Error('Failed to add budget');
+        dispatch(addToast({ type: 'error', message: data.message || 'Failed to add budget.' }));
       }
-    } catch (error) {
-      console.error('Error adding budget:', error);
-      alert('Failed to add budget. Please try again.');
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err.name === 'TypeError' ? "Can't reach the server." : `Error: ${err.message}` }));
     }
   };
 
-  // Delete budget
   const handleDeleteBudget = async (budgetId) => {
-    if (window.confirm('Are you sure you want to delete this budget?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/budgets/${budgetId}`, {
-          method: 'DELETE'
-        });
-
-        if (response.ok) {
-          setBudgets(prev => prev.filter(budget => budget._id !== budgetId));
-          alert('Budget deleted successfully!');
-        }
-      } catch (error) {
-        console.error('Error deleting budget:', error);
-        alert('Failed to delete budget.');
+    try {
+      const res = await fetch(`http://localhost:5000/api/budgets/${budgetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBudgets(prev => prev.filter(b => b._id !== budgetId));
+        dispatch(addToast({ type: 'success', message: 'Budget deleted!' }));
       }
+    } catch {
+      dispatch(addToast({ type: 'error', message: 'Failed to delete budget.' }));
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
-  // Toggle notifications
   const handleToggleNotifications = () => {
-    const newStatus = !notificationsEnabled;
-    setNotificationsEnabled(newStatus);
-    localStorage.setItem('notificationsEnabled', JSON.stringify(newStatus));
-    
-    if (newStatus && !email) {
-      const userEmail = prompt('Please enter your email address for notifications:');
-      if (userEmail) {
-        setEmail(userEmail);
-        localStorage.setItem('userEmail', userEmail);
-      } else {
-        setNotificationsEnabled(false);
-      }
+    const next = !notificationsEnabled;
+    setNotificationsEnabled(next);
+    localStorage.setItem('notificationsEnabled', JSON.stringify(next));
+    if (next && !email) setShowEmailPrompt(true);
+  };
+
+  const handleEmailPromptSubmit = () => {
+    if (emailInput) {
+      setEmail(emailInput);
+      localStorage.setItem('userEmail', emailInput);
+      setShowEmailPrompt(false);
+      setEmailInput('');
+    } else {
+      setNotificationsEnabled(false);
+      setShowEmailPrompt(false);
     }
   };
 
-  // Send budget email manually
   const handleSendEmail = async () => {
-    if (!email) {
-      alert('Please set your email address first');
-      return;
-    }
-
+    if (!email) { dispatch(addToast({ type: 'warning', message: 'Set your email first' })); return; }
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/budgets/send-budget-email', {
+      const res = await fetch('http://localhost:5000/api/budgets/send-budget-email', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-
-      if (response.ok) {
-        alert('Budget allocation email sent successfully!');
-      } else {
-        throw new Error('Failed to send email');
-      }
-    } catch (error) {
-      console.error('Error sending email:', error);
-      alert('Failed to send email. Please try again.');
+      if (res.ok) dispatch(addToast({ type: 'success', message: 'Budget email sent!' }));
+      else throw new Error('Failed');
+    } catch {
+      dispatch(addToast({ type: 'error', message: 'Failed to send email.' }));
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate budget usage (this would be enhanced with real transaction data)
   const calculateBudgetUsage = (budget) => {
-    // This is a simplified calculation - you'd want to fetch actual spending per category
-    const spent = Math.random() * budget.amount; // Mock data
+    const spent      = Math.random() * budget.amount;
     const percentage = (spent / budget.amount) * 100;
-    return {
-      spent: spent.toFixed(2),
-      percentage: percentage.toFixed(1),
-      remaining: (budget.amount - spent).toFixed(2)
-    };
+    return { spent: spent.toFixed(2), percentage: percentage.toFixed(1), remaining: (budget.amount - spent).toFixed(2) };
   };
 
   return (
     <div className="budget-page">
-      <div className="container">
-        <div className="page-header">
-          <h1>Budget Allocation & Notifications</h1>
-          <p>Manage your budgets and email notifications</p>
-        </div>
+      <div className="page-header">
+        <h1>Budget Manager</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
+          Set budgets and manage email notifications
+        </p>
+      </div>
 
-        <div className="budget-layout">
-          {/* Left Column - Budget Form and List */}
-          <div className="budget-section">
-            <div className="budget-form-card">
-              <h3>Add New Budget</h3>
-              <form onSubmit={handleAddBudget}>
-                <div className="form-group">
-                  <label>Category</label>
-                  <select
-                    name="category"
-                    value={newBudget.category}
-                    onChange={handleInputChange}
-                    required
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map(category => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                {newBudget.category === 'other' && (
-                  <div className="form-group">
-                    <label>Custom Category</label>
-                    <input
-                      type="text"
-                      name="customCategory"
-                      placeholder="Enter custom category"
-                      onChange={(e) => setNewBudget(prev => ({...prev, category: e.target.value}))}
-                    />
-                  </div>
-                )}
-
-                <div className="form-group">
-                  <label>Amount</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    value={newBudget.amount}
-                    onChange={handleInputChange}
-                    placeholder="Enter budget amount"
-                    step="0.01"
-                    min="0"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Period</label>
-                  <select
-                    name="period"
-                    value={newBudget.period}
-                    onChange={handleInputChange}
-                  >
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-
-                <button type="submit" className="btn-add-budget">
-                  Add Budget
-                </button>
-              </form>
+      {/* Email Prompt Modal */}
+      {showEmailPrompt && (
+        <div className="form-overlay">
+          <div className="transaction-form" style={{ maxWidth: '400px' }}>
+            <h2>Set Email for Alerts</h2>
+            <div className="form-group">
+              <label>Email Address</label>
+              <input type="email" placeholder="your@email.com" value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)} />
             </div>
-
-            {/* Budget List */}
-            <div className="budget-list-card">
-              <h3>Your Budgets</h3>
-              {budgets.length === 0 ? (
-                <p className="no-budgets">No budgets set yet. Add your first budget above.</p>
-              ) : (
-                <div className="budgets-list">
-                  {budgets.map(budget => {
-                    const usage = calculateBudgetUsage(budget);
-                    return (
-                      <div key={budget._id} className="budget-item">
-                        <div className="budget-header">
-                          <div className="budget-category">{budget.category}</div>
-                          <button 
-                            onClick={() => handleDeleteBudget(budget._id)}
-                            className="btn-delete"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                        <div className="budget-details">
-                          <div className="budget-amount">
-                            ${budget.amount} ({budget.period})
-                          </div>
-                          <div className="budget-usage">
-                            <div className="usage-bar">
-                              <div 
-                                className="usage-fill"
-                                style={{ width: `${Math.min(usage.percentage, 100)}%` }}
-                              ></div>
-                            </div>
-                            <div className="usage-text">
-                              ${usage.spent} spent (${usage.remaining} remaining)
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="form-buttons">
+              <button className="btn-submit" onClick={handleEmailPromptSubmit}>Save</button>
+              <button className="btn-cancel" onClick={() => { setShowEmailPrompt(false); setNotificationsEnabled(false); }}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Right Column - Notifications */}
-          <div className="notifications-section">
-            <div className="notifications-card">
-              <h3>Email Notifications</h3>
-              
-              {/* Notification Toggle */}
-              <div className="notification-toggle">
-                <label className="toggle-label">
-                  <span>Enable Email Notifications</span>
-                  <div className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={notificationsEnabled}
-                      onChange={handleToggleNotifications}
-                    />
-                    <span className="slider"></span>
-                  </div>
-                </label>
-                <p className="toggle-description">
-                  Receive email alerts when you're close to exceeding your budgets
-                </p>
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteId && (
+        <div className="form-overlay">
+          <div className="transaction-form" style={{ maxWidth: '380px', textAlign: 'center' }}>
+            <h2>Confirm Delete</h2>
+            <p style={{ color: 'var(--text-muted)', margin: '12px 0 24px' }}>
+              Are you sure you want to delete this budget?
+            </p>
+            <div className="form-buttons" style={{ justifyContent: 'center' }}>
+              <button className="btn-submit" style={{ background: 'var(--pink)', color: 'white' }}
+                onClick={() => handleDeleteBudget(confirmDeleteId)}>Delete</button>
+              <button className="btn-cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="budget-layout">
+        {/* Left Column */}
+        <div className="budget-section">
+          {/* Add Budget Form */}
+          <div className="budget-form-card">
+            <h3>Add New Budget</h3>
+            <form onSubmit={handleAddBudget} style={{ background: 'none', boxShadow: 'none', padding: 0, margin: 0, maxWidth: '100%' }}>
+              <div className="form-group">
+                <label>Category</label>
+                <select name="category" value={newBudget.category} onChange={handleInputChange} required>
+                  <option value="">Select Category</option>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="other">Other</option>
+                </select>
               </div>
-
-              {/* Email Input */}
-              {notificationsEnabled && (
-                <div className="email-section">
-                  <div className="form-group">
-                    <label>Email Address</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        localStorage.setItem('userEmail', e.target.value);
-                      }}
-                      placeholder="your@email.com"
-                    />
-                  </div>
-                  
-                  <div className="email-actions">
-                    <button 
-                      onClick={handleSendEmail}
-                      disabled={loading || !email}
-                      className="btn-send-email"
-                    >
-                      {loading ? 'Sending...' : 'Send Budget Summary Email'}
-                    </button>
-                    
-                    <p className="email-note">
-                      This will send your current budget allocation and spending summary to your email.
-                    </p>
-                  </div>
+              {newBudget.category === 'other' && (
+                <div className="form-group">
+                  <label>Custom Category</label>
+                  <input type="text" placeholder="Enter category"
+                    onChange={(e) => setNewBudget(prev => ({ ...prev, category: e.target.value }))} />
                 </div>
               )}
+              <div className="form-group">
+                <label>Amount</label>
+                <input type="number" name="amount" value={newBudget.amount}
+                  onChange={handleInputChange} placeholder="Budget amount" step="0.01" min="0" />
+              </div>
+              <div className="form-group">
+                <label>Period</label>
+                <select name="period" value={newBudget.period} onChange={handleInputChange}>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <button type="submit" className="btn-add-budget">Add Budget</button>
+            </form>
+          </div>
 
-              {/* Notification Settings */}
-              {notificationsEnabled && (
-                <div className="notification-settings">
-                  <h4>Alert Preferences</h4>
-                  <div className="alert-options">
-                    <label className="alert-option">
-                      <input type="checkbox" defaultChecked />
-                      <span>Notify when 80% of budget is used</span>
-                    </label>
-                    <label className="alert-option">
-                      <input type="checkbox" defaultChecked />
-                      <span>Notify when budget is exceeded</span>
-                    </label>
-                    <label className="alert-option">
-                      <input type="checkbox" defaultChecked />
-                      <span>Weekly budget summary</span>
-                    </label>
-                    <label className="alert-option">
-                      <input type="checkbox" />
-                      <span>Large transaction alerts</span>
-                    </label>
-                  </div>
+          {/* Budget List */}
+          <div className="budget-list-card">
+            <h3>Your Budgets</h3>
+            {budgets.length === 0 ? (
+              <p className="no-budgets">No budgets set yet. Add your first budget above.</p>
+            ) : (
+              <div className="budgets-list">
+                {budgets.map(budget => {
+                  const usage = calculateBudgetUsage(budget);
+                  return (
+                    <div key={budget._id} className="budget-item">
+                      <div className="budget-header">
+                        <div className="budget-category">{budget.category}</div>
+                        <button className="btn-delete" onClick={() => setConfirmDeleteId(budget._id)}>
+                          Delete
+                        </button>
+                      </div>
+                      <div className="budget-amount">
+                        ${budget.amount} / {budget.period}
+                      </div>
+                      <div className="usage-bar">
+                        <div className="usage-fill" style={{ width: `${Math.min(usage.percentage, 100)}%` }} />
+                      </div>
+                      <div className="usage-text">
+                        ${usage.spent} spent · ${usage.remaining} remaining
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="notifications-section">
+          <div className="notifications-card">
+            <h3>Email Notifications</h3>
+            <div className="notification-toggle">
+              <label className="toggle-label">
+                <span>Enable Email Alerts</span>
+                <div className="toggle-switch">
+                  <input type="checkbox" checked={notificationsEnabled} onChange={handleToggleNotifications} />
+                  <span className="slider" />
                 </div>
-              )}
+              </label>
+              <p className="toggle-description">
+                Get alerts when you're close to exceeding your budgets.
+              </p>
             </div>
 
-            {/* Budget Tips */}
-            <div className="tips-card">
-              <h3>Budgeting Tips</h3>
-              <ul className="tips-list">
-                <li>💡 Set realistic budgets based on your past spending</li>
-                <li>📊 Review your budgets monthly and adjust as needed</li>
-                <li>🔔 Enable notifications to stay on track</li>
-                <li>🎯 Focus on reducing spending in your highest categories</li>
-                <li>💰 Allocate 20% of income to savings when possible</li>
-              </ul>
-            </div>
+            {notificationsEnabled && (
+              <div className="email-section">
+                <div className="form-group">
+                  <label>Email Address</label>
+                  <input type="email" value={email} placeholder="your@email.com"
+                    onChange={(e) => { setEmail(e.target.value); localStorage.setItem('userEmail', e.target.value); }} />
+                </div>
+                <div className="email-actions">
+                  <button onClick={handleSendEmail} disabled={loading || !email} className="btn-send-email">
+                    {loading ? 'Sending...' : 'Send Budget Summary Email'}
+                  </button>
+                  <p className="email-note">Sends your current budget allocation to your email.</p>
+                </div>
+              </div>
+            )}
+
+            {notificationsEnabled && (
+              <div className="notification-settings">
+                <h4>Alert Preferences</h4>
+                <div className="alert-options">
+                  {[
+                    'Notify when 80% of budget is used',
+                    'Notify when budget is exceeded',
+                    'Weekly budget summary',
+                  ].map((label, i) => (
+                    <label key={i} className="alert-option">
+                      <input type="checkbox" defaultChecked />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                  <label className="alert-option">
+                    <input type="checkbox" />
+                    <span>Large transaction alerts</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="tips-card">
+            <h3>Budgeting Tips</h3>
+            <ul className="tips-list">
+              <li>💡 Set realistic budgets based on past spending</li>
+              <li>📊 Review budgets monthly and adjust as needed</li>
+              <li>🔔 Enable notifications to stay on track</li>
+              <li>🎯 Focus on reducing your highest-spend categories</li>
+              <li>💰 Allocate 20% of income to savings when possible</li>
+            </ul>
           </div>
         </div>
       </div>

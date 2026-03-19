@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 
 const AdminLogin = ({ setAdmin, setPage }) => {
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -41,6 +42,15 @@ const AdminLogin = ({ setAdmin, setPage }) => {
 
         <button className="btn" type="submit">
           Login
+        </button>
+
+        <button
+          type="button"
+          className="btn"
+          style={{ background: "#6c757d", marginTop: "8px" }}
+          onClick={() => setPage("home")}
+        >
+          ← Back to Home
         </button>
       </form>
     </div>

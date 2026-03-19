@@ -1,16 +1,19 @@
-// backend/models/Transaction.js
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
-  // Remove userId requirement for now, add it later when you have auth
+  userId: {
+    type: String,
+    required: false,
+  },
   amount: {
     type: Number,
     required: true
   },
   description: {
     type: String,
-    required: true,
-    trim: true
+    required: false,
+    trim: true,
+    default: ''
   },
   category: {
     type: String,

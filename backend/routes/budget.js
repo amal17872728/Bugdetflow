@@ -6,7 +6,9 @@ const nodemailer = require('nodemailer');
 // Get all budgets
 router.get('/', async (req, res) => {
   try {
-    const budgets = await Budget.find().sort({ category: 1 });
+    const { userId } = req.query;
+    const query = userId ? { userId } : {};
+    const budgets = await Budget.find(query).sort({ category: 1 });
     res.json(budgets);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -18,13 +20,16 @@ router.post('/', async (req, res) => {
   try {
     const { category, amount, period } = req.body;
     
-    // Check if budget already exists for this category
-    const existingBudget = await Budget.findOne({ category });
+    const { userId } = req.body;
+
+    // Check if budget already exists for this category for this user
+    const existingBudget = await Budget.findOne({ category, userId });
     if (existingBudget) {
       return res.status(400).json({ message: 'Budget already exists for this category' });
     }
 
     const budget = new Budget({
+      userId,
       category,
       amount: parseFloat(amount),
       period

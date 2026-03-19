@@ -7,7 +7,7 @@ const ExportPDF = ({ transactions }) => {
     
     doc.setFontSize(20);
     doc.setTextColor(40, 40, 40);
-    doc.text('FinTrack - Transactions Report', 105, 15, { align: 'center' });
+    doc.text('BudgetFlow - Transactions Report', 105, 15, { align: 'center' });
     
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
@@ -86,7 +86,7 @@ const ExportPDF = ({ transactions }) => {
       doc.setTextColor(150, 150, 150);
       doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
     }
-    doc.save(`fintrack-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`budgetflow-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (

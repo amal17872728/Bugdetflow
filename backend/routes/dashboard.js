@@ -5,7 +5,9 @@ const router = express.Router();
 // Get dashboard data
 router.get('/', async (req, res) => {
   try {
-    const transactions = await Transaction.find().sort({ date: -1 });
+    const { userId } = req.query;
+    const query = userId ? { userId } : {};
+    const transactions = await Transaction.find(query).sort({ date: -1 });
     
     // Calculate totals
     const totalIncome = transactions

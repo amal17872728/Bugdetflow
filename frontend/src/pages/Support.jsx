@@ -1,37 +1,27 @@
 import QR from "../components/Image/QR_CODE.jpeg";
 
-
 export default function Support() {
   return (
-    <div className="max-w-3xl mx-auto bg-white shadow-lg p-8 rounded-xl">
+    <div className="support-page">
+      <div className="page-header">
+        <h1>Support</h1>
+      </div>
+      <div className="support-card">
+        <h1>Support My Work 💚</h1>
+        <p className="support-sub">
+          If BudgetFlow helps you manage your finances, consider supporting
+          future development — every contribution counts!
+        </p>
 
-      <h1 className="text-3xl font-bold mb-4 text-center">
-        Support My Work 
-      </h1>
-
-      <p className="text-gray-600 text-center mb-10">
-        If this project helps you, consider supporting me to keep development alive.
-      </p>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-
-        {/* QR Payments */}
-        <div className="border p-5 rounded-xl bg-gray-50">
-          <h2 className="text-xl font-semibold mb-4 text-center">Easypaisa </h2>
-         
-<img src={QR} alt="QR"  className="w-40 mx-auto mb-4" />
-          
-          <p className="text-center">
-            <strong>Number:</strong> 03454543715 <br />
-            <strong>Name:</strong> Khadija Naeem
+        <div className="support-qr-box">
+          <h2>Easypaisa</h2>
+          <img src={QR} alt="Easypaisa QR Code" />
+          <p>
+            <strong>Number:</strong> 03212180900<br />
+            <strong>Name:</strong> Amal Usmaan
           </p>
         </div>
-
-
       </div>
-
-     
     </div>
   );
 }
